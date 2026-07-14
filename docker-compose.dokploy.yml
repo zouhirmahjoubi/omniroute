@@ -1,0 +1,69 @@
+# ──────────────────────────────────────────────────────────────────────
+#  OmniRoute — Docker Compose (Dokploy Adaptation)
+# ──────────────────────────────────────────────────────────────────────
+#
+#  Simplified, profile-free docker compose configuration for deploying
+#  OmniRoute on Dokploy via GitHub.
+#
+#  Usage in Dokploy:
+#    1. Create a "Docker Compose" service in your Dokploy project.
+#    2. Set repository URL and branch.
+#    3. Set "Compose Path" to: docker-compose.dokploy.yml
+#    4. In "Environment Variables" in Dokploy, add your required secrets.
+#    5. Expose Port 20128 for the omniroute service to link to a Domain.
+# ──────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Redis (Rate Limiter Backend) ──────────────────────────────────
+  redis:
+    image: redis:8.6.2-alpine
+    container_name: omniroute-redis-dokploy
+    restart: unless-stopped
+    volumes:
+      - redis-dokploy-data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── OmniRoute (AI Router Proxy) ──────────────────────────────────
+  omniroute:
+    container_name: omniroute-dokploy
+    restart: unless-stopped
+    stop_grace_period: 40s
+    depends_on:
+      redis:
+        condition: service_healthy
+    build:
+      context: .
+      # Choose the target stage based on your requirements:
+      # - runner-base: Lighter image, no Playwright/Chromium (~500MB)
+      # - runner-web: Includes Chromium/Playwright for web-cookie/session providers (~800MB)
+      target: runner-base
+    ports:
+      - "20128:20128"
+    volumes:
+      - omniroute-dokploy-data:/app/data
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - HOSTNAME=0.0.0.0
+      - PORT=20128
+      - REDIS_URL=redis://redis:6379
+      - DATA_DIR=/app/data
+      - OMNIROUTE_MIGRATIONS_DIR=/app/migrations
+    healthcheck:
+      test: ["CMD", "node", "healthcheck.mjs"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  omniroute-dokploy-data:
+    name: omniroute-dokploy-data
+  redis-dokploy-data:
+    name: redis-dokploy-data
