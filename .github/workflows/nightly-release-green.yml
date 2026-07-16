@@ -67,7 +67,11 @@ jobs:
               | sort -t/ -k2 -V \
               | tail -1)
           fi
-          if [ -z "$TARGET" ]; then echo "No release/v* branch found"; exit 1; fi
+          if [ -z "$TARGET" ]; then
+            echo "No release/v* branch found; skipping validation."
+            echo "target=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           # Strict format guard — reject anything that isn't release/vX.Y.Z (blocks
           # ref/command injection via the workflow_dispatch input).
           if ! printf '%s' "$TARGET" | grep -qE '^release/v[0-9]+\.[0-9]+\.[0-9]+$'; then
@@ -77,6 +81,7 @@ jobs:
           echo "Active release branch: $TARGET"
 
       - name: Checkout the release branch
+        if: steps.branch.outputs.target != ''
         env:
           TARGET: ${{ steps.branch.outputs.target }}
         run: |
@@ -85,14 +90,17 @@ jobs:
           git log -1 --oneline
 
       - uses: actions/setup-node@v6
+        if: steps.branch.outputs.target != ''
         with:
           node-version: "24"
           cache: npm
 
       - uses: ./.github/actions/npm-ci-retry
+        if: steps.branch.outputs.target != ''
 
       - name: Release-green validation (full)
         id: validate
+        if: steps.branch.outputs.target != ''
         run: |
           set +e
           # --hermetic: scrub live-test trigger vars (self-hosted runner may carry
@@ -104,7 +112,7 @@ jobs:
           cat release-green.log
 
       - name: Open / update tracking issue on HARD failure
-        if: steps.validate.outputs.exit != '0'
+        if: steps.branch.outputs.target != '' && steps.validate.outputs.exit != '0'
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET: ${{ steps.branch.outputs.target }}
@@ -136,7 +144,7 @@ jobs:
           fi
 
       - name: Upload report artifact
-        if: always()
+        if: always() && steps.branch.outputs.target != ''
         uses: actions/upload-artifact@v4
         with:
           name: release-green-report
