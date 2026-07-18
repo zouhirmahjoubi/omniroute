@@ -125,27 +125,27 @@ Configure the following environment variables in the Dokploy UI:
 
 ### 4.1 Required Production Variables
 
-| Variable | Description / Value |
-| :--- | :--- |
-| `JWT_SECRET` | Required for dashboard session signing. Generate via `openssl rand -base64 48`. |
-| `API_KEY_SECRET` | Encryption key for API keys stored in SQLite. Generate via `openssl rand -hex 32`. |
-| `INITIAL_PASSWORD` | The initial admin password on first boot. Change immediately after logging in. |
-| `DATA_DIR` | Directory for the SQLite database. Must be set to `/app/data` (matches volume mount). |
+| Variable           | Description / Value                                                                   |
+| :----------------- | :------------------------------------------------------------------------------------ |
+| `JWT_SECRET`       | Required for dashboard session signing. Generate via `openssl rand -base64 48`.       |
+| `API_KEY_SECRET`   | Encryption key for API keys stored in SQLite. Generate via `openssl rand -hex 32`.    |
+| `INITIAL_PASSWORD` | The initial admin password on first boot. Change immediately after logging in.        |
+| `DATA_DIR`         | Directory for the SQLite database. Must be set to `/app/data` (matches volume mount). |
 
 ### 4.2 Database & Redis Variables
 
-| Variable | Description / Value |
-| :--- | :--- |
-| `REDIS_URL` | Redis connection URL. For Option A (Compose), use `redis://redis:6379`. For Option B, use your Dokploy Redis credentials. |
-| `STORAGE_ENCRYPTION_KEY` | Optional encryption key for SQLite database at rest. Generate via `openssl rand -hex 32`. |
-| `DISABLE_SQLITE_AUTO_BACKUP` | Set to `false` to enable automatic database backup on startup. |
+| Variable                     | Description / Value                                                                                                       |
+| :--------------------------- | :------------------------------------------------------------------------------------------------------------------------ |
+| `REDIS_URL`                  | Redis connection URL. For Option A (Compose), use `redis://redis:6379`. For Option B, use your Dokploy Redis credentials. |
+| `STORAGE_ENCRYPTION_KEY`     | Optional encryption key for SQLite database at rest. Generate via `openssl rand -hex 32`.                                 |
+| `DISABLE_SQLITE_AUTO_BACKUP` | Set to `false` to enable automatic database backup on startup.                                                            |
 
 ### 4.3 Network & Ports (Defaults matched to Docker config)
 
-| Variable | Description / Value |
-| :--- | :--- |
-| `PORT` | Set to `20128`. |
-| `HOSTNAME` | Set to `0.0.0.0`. |
+| Variable                   | Description / Value       |
+| :------------------------- | :------------------------ |
+| `PORT`                     | Set to `20128`.           |
+| `HOSTNAME`                 | Set to `0.0.0.0`.         |
 | `OMNIROUTE_MIGRATIONS_DIR` | Set to `/app/migrations`. |
 
 ---
@@ -159,3 +159,53 @@ To enable automatic deployment when you push code to GitHub:
 3. In your GitHub repository, go to **Settings -> Webhooks -> Add webhook**.
 4. Paste the webhook URL into **Payload URL**, set **Content type** to `application/json`, and select the **Just the push event** trigger.
 5. Click **Add webhook**.
+
+---
+
+## 6. Troubleshooting
+
+### 6.1 Memory Exhaustion & Build Failures (OOM)
+
+Compiling Next.js App Router projects can consume substantial memory (~1.5GB to 2GB RAM). If your VPS has 1GB or 2GB of RAM and no SWAP space configured, Docker builds will frequently crash or hang during the build stage.
+
+> [!IMPORTANT]
+> Always configure a swap file on your host VPS to prevent Out-Of-Memory (OOM) situations during Next.js builds.
+
+To set up a 4GB swap space on your Ubuntu/Debian host VPS:
+
+```bash
+# Check existing swap
+sudo swapon --show
+
+# Create a 4GB swap file
+sudo fallocate -l 4G /swapfile
+
+# Set correct permissions
+sudo chmod 600 /swapfile
+
+# Set up swap area
+sudo mkswap /swapfile
+
+# Enable swap
+sudo swapon /swapfile
+
+# Persist across reboots
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+# Verify it works
+free -h
+```
+
+### 6.2 Bypassing Build Tool Installation (g++ / make / python3)
+
+By default, the Dockerfile builds the `better-sqlite3` native addon using prebuilt binaries. It skips installing compiler tools (`python3`, `make`, `g++`) to make builds faster and less resource-heavy.
+
+If you are deploying on a non-standard platform or architecture where prebuilt binaries are unavailable, the build might fail during dependency installation.
+
+To force compilation from source:
+
+1. In Dokploy, go to your service's **Build** settings.
+2. Add a new **Build Argument**:
+   - **Key:** `OMNIROUTE_INSTALL_BUILD_TOOLS`
+   - **Value:** `1`
+3. Click **Save** and redeploy.

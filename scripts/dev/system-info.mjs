@@ -155,9 +155,10 @@ const report = lines.join("\n") + "\n";
 
 // Write to file
 const outArg = process.argv.find((a) => a.startsWith("--output="));
+const hasOutput = process.argv.includes("--output");
 const outFile = outArg
   ? outArg.replace("--output=", "")
-  : process.argv[process.argv.indexOf("--output") + 1] || "system-info.txt";
+  : (hasOutput ? process.argv[process.argv.indexOf("--output") + 1] : null) || "system-info.txt";
 
 const outPath = join(ROOT, outFile);
 

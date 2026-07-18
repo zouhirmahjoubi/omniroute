@@ -27,13 +27,16 @@ RUN npm install -g npm@latest \
 # ── Builder ────────────────────────────────────────────────────────────────
 FROM base AS builder
 
-# Build tools for native module compilation
-# apt-get update needed here because base's rm -rf clears the shared cache
+# Build tools for native module compilation (optional, defaults to 0 / skipped)
+# Set to 1 if you are on an unsupported platform and must compile better-sqlite3 from source.
+ARG OMNIROUTE_INSTALL_BUILD_TOOLS=0
 RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=shared \
   --mount=type=cache,id=apt-lists,target=/var/lib/apt/lists,sharing=shared \
-  apt-get update \
-  && apt-get install -y --no-install-recommends python3 make g++ \
-  && rm -rf /var/lib/apt/lists/*
+  if [ "$OMNIROUTE_INSTALL_BUILD_TOOLS" = "1" ]; then \
+    apt-get update \
+    && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*; \
+  fi
 
 COPY package*.json ./
 # Workspace package manifests MUST be present before `npm ci` so npm materializes
